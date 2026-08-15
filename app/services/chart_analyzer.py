@@ -39,22 +39,29 @@ def _unclear_chart() -> dict:
     )
 
 
-def _colour_masks(frame: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return common bullish (green/cyan/blue) and bearish (red/orange) masks."""
+def _colour_masks(frame: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return coloured candle masks plus bright neutral/white candle evidence."""
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     # Use moderately saturated colours so photographed/blurred displays are not
     # discarded, while low-saturation text and most screen chrome stay excluded.
-    bullish = cv2.inRange(hsv, np.array((35, 35, 55)), np.array((135, 255, 255)))
+    bullish = cv2.inRange(hsv, np.array((35, 65, 55)), np.array((135, 255, 255)))
     bearish = cv2.bitwise_or(
-        cv2.inRange(hsv, np.array((0, 35, 55)), np.array((20, 255, 255))),
-        cv2.inRange(hsv, np.array((160, 35, 55)), np.array((180, 255, 255))),
+        cv2.inRange(hsv, np.array((0, 65, 55)), np.array((20, 255, 255))),
+        cv2.inRange(hsv, np.array((160, 65, 55)), np.array((180, 255, 255))),
     )
-    return bullish, bearish
+    # White candles are common on dark charts. Restrict neutral pixels to a
+    # dark neighbourhood so a light page/chart background never becomes one
+    # giant candidate component.
+    bright_neutral = cv2.inRange(hsv, np.array((0, 0, 175)), np.array((180, 42, 255)))
+    dark_pixels = cv2.inRange(hsv[:, :, 2], 0, 135)
+    near_dark = cv2.dilate(dark_pixels, np.ones((9, 9), np.uint8))
+    neutral = cv2.bitwise_and(bright_neutral, near_dark)
+    return bullish, bearish, neutral
 
 
 def _best_candle_run(candidates: list[dict]) -> list[dict]:
     """Keep the densest repeated-candle run and discard surrounding app UI."""
-    if len(candidates) < 7:
+    if len(candidates) < 6:
         return []
     candidates.sort(key=lambda item: item["x"])
     widths = np.array([item["width"] for item in candidates], dtype=float)
@@ -68,7 +75,7 @@ def _best_candle_run(candidates: list[dict]) -> list[dict]:
             runs.append(current)
             current = [candidate]
     runs.append(current)
-    eligible = [run for run in runs if len(run) >= 7]
+    eligible = [run for run in runs if len(run) >= 6]
     if not eligible:
         return []
     # Prefer repeated spacing over merely having many coloured UI components.
@@ -82,8 +89,8 @@ def _best_candle_run(candidates: list[dict]) -> list[dict]:
 def _chart_candidates(frame: np.ndarray) -> tuple[list[dict], tuple[int, int, int, int] | None, float]:
     """Find repeated narrow coloured wick/body components; colour alone is insufficient."""
     height, width = frame.shape[:2]
-    bullish, bearish = _colour_masks(frame)
-    combined = cv2.bitwise_or(bullish, bearish)
+    bullish, bearish, neutral = _colour_masks(frame)
+    combined = cv2.bitwise_or(cv2.bitwise_or(bullish, bearish), neutral)
     # Join a body to its vertical wick, but never join neighbouring candles.
     combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, np.ones((3, 1), np.uint8))
     component_count, _, stats, _ = cv2.connectedComponentsWithStats(combined, connectivity=8)
@@ -123,7 +130,14 @@ def _chart_candidates(frame: np.ndarray) -> tuple[list[dict], tuple[int, int, in
         geometry_passes += 1
         crop_green = bullish[y:y + candidate_height, x:x + candidate_width]
         crop_red = bearish[y:y + candidate_height, x:x + candidate_width]
-        direction = 1 if np.count_nonzero(crop_green) >= np.count_nonzero(crop_red) else -1
+        crop_neutral = neutral[y:y + candidate_height, x:x + candidate_width]
+        green_pixels = int(np.count_nonzero(crop_green))
+        red_pixels = int(np.count_nonzero(crop_red))
+        neutral_pixels = int(np.count_nonzero(crop_neutral))
+        if max(green_pixels, red_pixels) < max(3, neutral_pixels * 0.25):
+            direction = 0
+        else:
+            direction = 1 if green_pixels >= red_pixels else -1
         absolute_body_top = y + body_top
         absolute_body_bottom = y + body_bottom
         candidates.append({
@@ -145,7 +159,7 @@ def _chart_candidates(frame: np.ndarray) -> tuple[list[dict], tuple[int, int, in
         })
 
     candidates = _best_candle_run(candidates)
-    if len(candidates) < 7:
+    if len(candidates) < 6:
         LOGGER.debug("chart validation rejected: candidate_count=%s geometry_passes=%s", len(candidates), geometry_passes)
         return candidates, None, 0.0
     candidates.sort(key=lambda item: item["x"])
@@ -169,7 +183,16 @@ def _chart_candidates(frame: np.ndarray) -> tuple[list[dict], tuple[int, int, in
         min(1.0, (item["upper_wick"] + item["lower_wick"]) / max(1.0, item["body_height"]))
         for item in candidates
     ]))
+    wick_candidate_ratio = float(np.mean([
+        item["upper_wick"] + item["lower_wick"] >= 2
+        for item in candidates
+    ]))
+    two_sided_wick_ratio = float(np.mean([
+        item["upper_wick"] > 0 and item["lower_wick"] > 0
+        for item in candidates
+    ]))
     chart_area_ratio = ((right - left) * (bottom - top)) / max(1.0, width * height)
+    sequence_aspect = (right - left) / max(1.0, bottom - top)
 
     # Plot regions normally contain horizontal/vertical grid or border edges.
     roi = cv2.cvtColor(frame[top:bottom, max(0, left - 25):min(width, right + 25)], cv2.COLOR_BGR2GRAY)
@@ -194,18 +217,33 @@ def _chart_candidates(frame: np.ndarray) -> tuple[list[dict], tuple[int, int, in
         0.20 * count_score + 0.17 * coverage + 0.18 * geometry_score
         + 0.25 * repeated_pattern + 0.10 * min(1.0, chart_area_ratio * 5) + 0.10 * line_support
     )
-    # All strict checks are required. Candidate colour, contours, or vertical
-    # lines alone can never pass this gate.
+    # Validation is evidence-based rather than a single rigid crop/size rule.
+    # A readable image, colours, text, rectangles, or vertical edges cannot
+    # pass alone: several independent candle-sequence characteristics must
+    # agree. This accepts cropped/light/mobile charts with fewer candles while
+    # continuing to reject ordinary photographs and unrelated screenshots.
+    independent_signals = sum((
+        len(candidates) >= 6,
+        coverage >= 0.10,
+        spacing >= 0.38,
+        geometry_score >= 0.40,
+        size_consistency >= 0.30 and body_consistency >= 0.28,
+        wick_candidate_ratio >= 0.40 or two_sided_wick_ratio >= 0.18,
+        sequence_aspect >= 1.25,
+        chart_area_ratio >= 0.008 or line_support >= 0.20,
+    ))
     valid = (
-        len(candidates) >= 7 and coverage >= 0.12 and spacing >= 0.34
-        and geometry_score >= 0.38 and size_consistency >= 0.28 and body_consistency >= 0.25
-        and chart_area_ratio >= 0.008 and repeated_pattern >= 0.30 and validation >= 0.34
+        len(candidates) >= 6 and wick_candidate_ratio >= 0.34
+        and spacing >= 0.32 and sequence_aspect >= 1.10
+        and repeated_pattern >= 0.34 and validation >= 0.40
+        and independent_signals >= 6
     )
     LOGGER.debug(
         "chart validation metrics count=%s coverage=%.3f spacing=%.3f geometry=%.3f size=%.3f body=%.3f "
-        "wicks=%.3f area=%.3f pattern=%.3f lines=%.3f score=%.3f valid=%s",
+        "wicks=%.3f wick_candidates=%.3f two_sided=%.3f area=%.3f aspect=%.3f pattern=%.3f lines=%.3f score=%.3f signals=%s valid=%s",
         len(candidates), coverage, spacing, geometry_score, size_consistency, body_consistency,
-        wick_balance, chart_area_ratio, repeated_pattern, line_support, validation, valid,
+        wick_balance, wick_candidate_ratio, two_sided_wick_ratio, chart_area_ratio, sequence_aspect,
+        repeated_pattern, line_support, validation, independent_signals, valid,
     )
     return candidates, (left, top, right, bottom) if valid else None, validation
 
