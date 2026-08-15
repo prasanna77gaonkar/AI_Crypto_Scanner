@@ -1,0 +1,64 @@
+:root {
+    color-scheme: dark;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #08111f;
+    color: #edf4ff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-width: 320px;
+    background: radial-gradient(circle at 20% 0%, #17345a 0, transparent 35%), #08111f;
+}
+
+.scanner-app { width: min(100% - 32px, 760px); margin: 0 auto; padding: 36px 0 52px; }
+.hero { margin-bottom: 24px; }
+.eyebrow { color: #56d7c3; font-size: .72rem; font-weight: 800; letter-spacing: .14em; margin: 0 0 8px; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { font-size: clamp(2rem, 8vw, 3.25rem); letter-spacing: -.05em; margin-bottom: 10px; }
+.hero > p:last-child { color: #aac0d9; line-height: 1.5; margin-bottom: 0; }
+
+.card { background: rgba(14, 28, 47, .92); border: 1px solid #28435f; border-radius: 20px; padding: clamp(18px, 5vw, 28px); box-shadow: 0 16px 45px rgba(0, 0, 0, .22); }
+.card + .card { margin-top: 18px; }
+h2 { font-size: 1.1rem; margin-bottom: 16px; }
+
+.camera-frame { align-items: center; background: #040912; border: 1px dashed #3b5a78; border-radius: 14px; display: flex; justify-content: center; min-height: 250px; overflow: hidden; position: relative; }
+video, #imagePreview { display: block; height: auto; max-height: 480px; object-fit: contain; width: 100%; }
+#previewHint { color: #91a8c1; padding: 24px; text-align: center; }
+
+.actions { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+.button { appearance: none; background: #1d3855; border: 1px solid #426789; border-radius: 10px; color: #f3f8ff; cursor: pointer; font: inherit; font-weight: 700; min-height: 48px; padding: 10px 12px; text-align: center; }
+.button:hover { background: #294b6c; }
+.button:disabled { cursor: not-allowed; opacity: .5; }
+.button-primary { background: #1b8379; border-color: #47d4c4; }
+.button-primary:hover { background: #209d90; }
+.button-upload { align-items: center; display: flex; justify-content: center; }
+.button-scan { background: #4e4bcc; border-color: #938fff; margin-top: 12px; width: 100%; }
+.button-scan:hover { background: #625ee2; }
+.status { color: #a9c0d8; font-size: .9rem; margin: 12px 0 0; min-height: 1.2em; }
+
+.section-heading { align-items: center; display: flex; justify-content: space-between; gap: 12px; }
+.section-heading h2 { margin-bottom: 0; }
+.result-state { background: #203a56; border-radius: 99px; color: #a9cbe9; font-size: .76rem; font-weight: 700; padding: 6px 10px; }
+.empty-result { color: #9eb3ca; padding: 22px 0 4px; }
+.signal { font-size: clamp(2rem, 9vw, 3.4rem); font-weight: 900; letter-spacing: -.04em; margin: 22px 0; }
+.signal.buy { color: #50e0a4; }
+.signal.sell { color: #ff787d; }
+.signal.hold { color: #f7cc70; }
+.signal.invalid, .signal.error { color: #ff9d9d; font-size: clamp(1.5rem, 6vw, 2.2rem); }
+.metrics { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin: 0; }
+.metrics > div { background: #10243b; border-radius: 10px; padding: 12px; }
+dt { color: #9ab2cb; font-size: .73rem; font-weight: 700; text-transform: uppercase; }
+dd { font-size: 1rem; font-weight: 800; margin: 5px 0 0; }
+.analysis-block { border-top: 1px solid #28435f; margin-top: 20px; padding-top: 18px; }
+.analysis-block h3 { font-size: .85rem; letter-spacing: .08em; margin-bottom: 8px; text-transform: uppercase; }
+.analysis-block p { color: #c7d7e7; line-height: 1.55; margin-bottom: 0; }
+
+@media (max-width: 560px) {
+    .scanner-app { width: min(100% - 22px, 760px); padding-top: 24px; }
+    .actions { grid-template-columns: 1fr; }
+    .metrics { grid-template-columns: 1fr; }
+    .camera-frame { min-height: 220px; }
+}

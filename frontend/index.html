@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#08111f">
+    <title>AI Crypto Scanner</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="scanner-app">
+        <header class="hero">
+            <p class="eyebrow">TECHNICAL CHART ANALYSIS</p>
+            <h1>AI Crypto Scanner</h1>
+            <p>Capture or upload a candlestick chart for evidence-based analysis.</p>
+        </header>
+
+        <section class="card capture-card" aria-labelledby="capture-title">
+            <h2 id="capture-title">Chart image</h2>
+            <div class="camera-frame">
+                <video id="camera" autoplay playsinline muted aria-label="Camera preview"></video>
+                <img id="imagePreview" alt="Selected chart preview" hidden>
+                <p id="previewHint">Start the camera or upload a chart image.</p>
+            </div>
+
+            <div class="actions">
+                <button id="startCamera" class="button button-primary" type="button">Start Camera</button>
+                <button id="captureChart" class="button" type="button" disabled>Capture Chart</button>
+                <label class="button button-upload" for="imageUpload">Upload Chart Image</label>
+                <input id="imageUpload" type="file" accept="image/*" hidden>
+            </div>
+            <button id="scanChart" class="button button-scan" type="button" disabled>Scan Chart</button>
+            <p id="captureStatus" class="status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="card result-card" aria-labelledby="result-title" aria-live="polite">
+            <div class="section-heading">
+                <h2 id="result-title">Scanner Result</h2>
+                <span id="resultState" class="result-state">Ready</span>
+            </div>
+            <div id="emptyResult" class="empty-result">Your scan result will appear here.</div>
+            <div id="resultContent" hidden>
+                <p id="signal" class="signal"></p>
+                <dl class="metrics">
+                    <div><dt>Confidence</dt><dd id="confidence"></dd></div>
+                    <div><dt>Trend</dt><dd id="trend"></dd></div>
+                    <div><dt>Timeframe</dt><dd id="timeframe"></dd></div>
+                </dl>
+                <div class="analysis-block">
+                    <h3>Analysis</h3>
+                    <p id="analysis"></p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+</body>
+</html>
